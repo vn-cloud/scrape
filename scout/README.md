@@ -12,7 +12,7 @@ Only things that were never reported before are shown. When the same project sho
 
 | Step | What | State |
 |---|---|---|
-| 1 | RootData → Telegram | in progress |
+| 1 | RootData → Telegram | built, waiting for Telegram secrets to test delivery |
 | 2 | DefiLlama + CoinGecko token check | planned |
 | 3 | Airdrop sites | planned |
 | 4 | Competitor launchpad websites | planned |
@@ -36,6 +36,23 @@ scout/
 without reporting it — otherwise adding a new source would flood the report with old entries.
 The very first run sends a short "Scout is running, remembered N entries" message.
 
+## Sources
+
+### RootData (funding rounds)
+
+The website `rootdata.com/Fundraising` shows an interactive captcha to cloud servers (Tencent Cloud WAF),
+so it cannot be scraped from GitHub Actions. Instead the scout uses RootData's **free "skill" API**
+(made for AI agents, no registration):
+
+* `POST https://api.rootdata.com/open/skill/init` → anonymous API key (fetched automatically every run;
+  optionally store one as `ROOTDATA_SKILL_KEY`).
+* `POST /open/skill/get_fac` → funding rounds of the last 365 days; the scout asks for the last
+  `max_age_days` (14) and keeps only `stages` from `config.toml` (pre-seed, seed).
+* `POST /open/skill/get_item` → project card. A non-empty `token_symbol` means the project already has
+  a token, so the round is dropped. This replaces the website's "Token Issuance = No Token" filter.
+
+Limits of the free API: at most **3 investors per round**, no valuation, 200 requests/minute.
+
 ## Secrets
 
 Secrets never go into the repository. Locally, create a file named `.env` in the repository root
@@ -46,6 +63,7 @@ Secrets never go into the repository. Locally, create a file named `.env` in the
 |---|---|---|
 | `TELEGRAM_BOT_TOKEN` | step 1 | Telegram → @BotFather → `/newbot` (or `/mybots` → your bot → API Token) |
 | `TELEGRAM_CHAT_ID` | step 1 | Telegram → @userinfobot → it replies with your numeric `Id`. Send `/start` to your bot once, otherwise it cannot write to you |
+| `ROOTDATA_SKILL_KEY` | optional | not needed: a free key is requested automatically on every run |
 | `COINGECKO_API_KEY` | step 2 | coingecko.com/en/api/pricing → Demo (free) → create account → Developer Dashboard |
 | `TG_API_ID`, `TG_API_HASH`, `TG_SESSION` | step 5 | my.telegram.org → API development tools (instructions will be added in step 5) |
 | `ANTHROPIC_API_KEY` | step 5 | platform.claude.com → API Keys |

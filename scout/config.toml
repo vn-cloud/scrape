@@ -16,3 +16,85 @@ max_age_days = 14
 [sources]
 # Set a source to false to switch it off without touching the code.
 rootdata = true
+
+# Competitor launchpad Telegram chats, read in step 5 with a separate user account.
+# The account must have joined every chat. Private chats use their invite link.
+[[telegram_chats]]
+launchpad = "Alphamind"
+link = "https://t.me/alphamind_community"
+
+[[telegram_chats]]
+launchpad = "Gems"
+link = "https://t.me/GemsOfficialCommunity"
+
+[[telegram_chats]]
+launchpad = "Kommunitas"
+link = "https://t.me/Kommunitas"
+
+[[telegram_chats]]
+launchpad = "Up10"
+link = "https://t.me/up10pad"
+
+[[telegram_chats]]
+launchpad = "Ember Network"
+link = "https://t.me/EmberNetwork_Group"
+
+[[telegram_chats]]
+launchpad = "Poolz"
+link = "https://t.me/PoolzOfficialCommunity"
+
+[[telegram_chats]]
+launchpad = "Huostarter"
+link = "https://t.me/huostarter"
+
+[[telegram_chats]]
+launchpad = "IXIRPAD"
+link = "https://t.me/ixirpadoffical"
+
+[[telegram_chats]]
+launchpad = "Kingdomstarter"
+link = "https://t.me/kdg_en"
+
+[[telegram_chats]]
+launchpad = "BinStarter"
+link = "https://t.me/BinStarterAnnouncement"
+
+[[telegram_chats]]
+launchpad = "MetaDAO"
+link = "https://t.me/metadaoalerts"
+
+[[telegram_chats]]
+launchpad = "CryptoHub"
+link = "https://t.me/CryptoHub_Tools"
+
+[[telegram_chats]]
+launchpad = "TrustSwap"
+link = "https://t.me/TrustSwap"
+
+[[telegram_chats]]
+launchpad = "eesee"
+link = "https://t.me/eesee_io"
+
+[[telegram_chats]]
+launchpad = "Finceptor"
+link = "https://t.me/finceptor_global"
+
+[[telegram_chats]]
+launchpad = "Polkastarter"
+link = "https://t.me/polkastarter"
+
+[[telegram_chats]]
+launchpad = "Buidlpad"
+link = "https://t.me/BuidlPad"
+
+[[telegram_chats]]
+launchpad = "CoinList"
+link = "https://t.me/coinlistofficialchannel"
+
+[[telegram_chats]]
+launchpad = "Legion"
+link = "https://t.me/+FhExPXk9PktiMDE0"
+
+[[telegram_chats]]
+launchpad = "SwissBorg"
+link = "https://t.me/SwissBorg"

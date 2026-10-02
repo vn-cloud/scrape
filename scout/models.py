@@ -31,12 +31,29 @@ class Item:
     sources: list[str] = field(default_factory=list)
     links: dict[str, str] = field(default_factory=dict)
     flags: list[str] = field(default_factory=list)
+    #: The project's own ID inside each source (e.g. {"RootData": "26083"}), when the source has one.
+    ids: dict[str, str] = field(default_factory=dict)
+    #: Set when two different projects end up with the same name key (see conflicts_with).
+    disambiguator: str = ""
 
     block: ClassVar[Block]
 
+    def base_key(self) -> str:
+        return project_key(self.project)
+
     def key(self) -> str:
         """Identity used for merging duplicates and for the "already seen" history."""
-        return project_key(self.project)
+        base = self.base_key()
+        return f"{base}#{self.disambiguator}" if self.disambiguator else base
+
+    def conflicts_with(self, ids: dict[str, str]) -> bool:
+        """True if a source gives this item and `ids` different IDs, i.e. they are different projects
+        that merely share a name key ("Nexus Labs" vs "Nexus Network")."""
+        return any(src in ids and str(ids[src]) != str(own) for src, own in self.ids.items())
+
+    def disambiguate(self) -> None:
+        src, own = sorted(self.ids.items())[0]
+        self.disambiguator = f"{src}:{own}"
 
     def merge(self, other: "Item") -> None:
         """Fold a duplicate of this item (same key) found by another source into it."""
@@ -48,6 +65,8 @@ class Item:
         for flag in other.flags:
             if flag not in self.flags:
                 self.flags.append(flag)
+        for src, own in other.ids.items():
+            self.ids.setdefault(src, own)
 
 
 @dataclass
@@ -62,7 +81,7 @@ class FundingRound(Item):
 
     block: ClassVar[Block] = Block.FUNDING
 
-    def key(self) -> str:
+    def base_key(self) -> str:
         # The same project can legitimately show up again with a later round
         # (pre-seed now, seed in six months), so the stage is part of the identity.
         return f"{project_key(self.project)}|{stage_key(self.stage)}"

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import html
+import re
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Callable
 
@@ -14,6 +16,13 @@ from .normalize import format_amount, stage_key
 MAX_MESSAGE_LEN = 3800
 MAX_INVESTORS_SHOWN = 6
 MAX_TAGS_SHOWN = 3
+
+
+@dataclass
+class Message:
+    text: str
+    #: Items whose entry is inside this message: once it is delivered they count as reported.
+    items: list[Item] = field(default_factory=list)
 
 
 def esc(text: str) -> str:
@@ -66,20 +75,62 @@ SECTIONS: dict[Block, tuple[str, str, Callable[[int, Item], str]]] = {
 }
 
 
-def _pack(parts: list[str]) -> list[str]:
-    """Join message parts into as few Telegram messages as possible, never splitting a part."""
-    messages: list[str] = []
+def _plain(text: str) -> str:
+    """HTML -> escaped plain text, for the rare line that has to be cut."""
+    return esc(html.unescape(re.sub(r"<[^>]+>", "", text)))
+
+
+def _cut_line(line: str) -> list[str]:
+    """Cut one over-long line into pieces, never inside an HTML tag or an entity like &amp;."""
+    line = _plain(line)
+    pieces = []
+    while len(line) > MAX_MESSAGE_LEN:
+        cut = line.rfind(" ", 0, MAX_MESSAGE_LEN)
+        if cut <= 0:
+            cut = MAX_MESSAGE_LEN
+        amp = line.rfind("&", max(0, cut - 8), cut)
+        if amp != -1 and ";" not in line[amp:cut]:
+            cut = amp
+        pieces.append(line[:cut])
+        line = line[cut:].lstrip(" ")
+    pieces.append(line)
+    return pieces
+
+
+def _fit(text: str) -> list[str]:
+    """Split an over-long part at line breaks so that no chunk exceeds the Telegram limit."""
+    if len(text) <= MAX_MESSAGE_LEN:
+        return [text]
+    chunks: list[str] = []
     current = ""
-    for part in parts:
-        candidate = f"{current}\n\n{part}" if current else part
-        if len(candidate) <= MAX_MESSAGE_LEN:
-            current = candidate
-            continue
-        if current:
-            messages.append(current)
-        # A single part longer than the limit (should not happen) is hard-cut.
-        current = part[:MAX_MESSAGE_LEN]
+    for raw_line in text.split("\n"):
+        for line in ([raw_line] if len(raw_line) <= MAX_MESSAGE_LEN else _cut_line(raw_line)):
+            candidate = f"{current}\n{line}" if current else line
+            if len(candidate) > MAX_MESSAGE_LEN:
+                chunks.append(current)
+                current = line
+            else:
+                current = candidate
     if current:
+        chunks.append(current)
+    return chunks
+
+
+def _pack(parts: list[tuple[str, Item | None]]) -> list[Message]:
+    """Join message parts into as few Telegram messages as possible, never splitting a part."""
+    messages: list[Message] = []
+    current = Message("")
+    for text, item in parts:
+        for chunk in _fit(text):
+            candidate = f"{current.text}\n\n{chunk}" if current.text else chunk
+            if len(candidate) > MAX_MESSAGE_LEN and current.text:
+                messages.append(current)
+                current = Message(chunk)
+            else:
+                current.text = candidate
+        if item is not None:
+            current.items.append(item)
+    if current.text:
         messages.append(current)
     return messages
 
@@ -93,49 +144,57 @@ def build_report(
     results: list[SourceResult],
     newly_initialized: dict[str, int],
     preview: bool = False,
-) -> list[str]:
+) -> list[Message]:
     header = f"🔭 <b>{esc(title)}</b> — {today.day} {today.strftime('%b %Y')}"
     if preview:
         header += "\n🧪 <i>Preview: history ignored, showing recent entries</i>"
     else:
         header += "\n<i>Only what is new since the previous report</i>"
-    parts = [header]
+    parts: list[tuple[str, Item | None]] = [(header, None)]
 
     for block in Block:
         if block not in active_blocks or block not in SECTIONS:
             continue
         section_title, empty_text, render = SECTIONS[block]
         items = new_items.get(block, [])
-        parts.append(f"{section_title} ({len(items)})")
+        block_results = [r for r in results if r.block == block]
+        section = f"{section_title} ({len(items)})"
         if not items:
-            parts[-1] += f"\n<i>{empty_text}</i>"
+            if block_results and not any(r.ok for r in block_results):
+                section += "\n<i>No data today: the sources did not respond (see below).</i>"
+            else:
+                section += f"\n<i>{empty_text}</i>"
+        parts.append((section, None))
         for n, item in enumerate(items, 1):
-            parts.append(render(n, item))
+            parts.append((render(n, item), item))
 
-    footer = []
-    failed = [r for r in results if not r.ok]
-    for r in failed:
-        footer.append(f"⚠️ Source <b>{esc(r.source)}</b> did not respond: {esc(r.error)}")
+    for r in results:
+        if not r.ok:
+            parts.append((f"⚠️ Source <b>{esc(r.source)}</b> did not respond: {esc(r.error)}", None))
     for source, count in newly_initialized.items():
-        footer.append(
+        parts.append((
             f"ℹ️ New source <b>{esc(source)}</b> connected: remembered {count} existing entries, "
-            "new ones will be reported from the next run."
-        )
+            "new ones will be reported from the next run.",
+            None,
+        ))
     ok_sources = [r.source for r in results if r.ok]
     if ok_sources:
-        footer.append("<i>Checked: " + ", ".join(esc(s) for s in ok_sources) + "</i>")
-    if footer:
-        parts.append("\n".join(footer))
+        parts.append(("<i>Checked: " + ", ".join(esc(s) for s in ok_sources) + "</i>", None))
     return _pack(parts)
 
 
-def build_started_message(*, title: str, remembered: dict[str, int], results: list[SourceResult]) -> list[str]:
+def build_started_message(
+    *, title: str, remembered: int, by_source: dict[str, int], results: list[SourceResult]
+) -> list[Message]:
     lines = [f"🔭 <b>{esc(title)}</b> is running."]
-    total = sum(remembered.values())
-    by_source = ", ".join(f"{esc(s)} ({n})" for s, n in remembered.items())
-    lines.append(f"First run: remembered {total} existing entries from {by_source}.")
-    lines.append("From the next run you will only get what is new.")
+    if by_source:
+        details = ", ".join(f"{esc(s)}: {n}" for s, n in by_source.items())
+        lines.append(f"First run: remembered {remembered} existing entries ({details}).")
+        lines.append("From the next run you will only get what is new.")
+    else:
+        lines.append("First run: no source responded, nothing remembered yet. The next run will try again.")
+    parts: list[tuple[str, Item | None]] = [("\n".join(lines), None)]
     for r in results:
         if not r.ok:
-            lines.append(f"⚠️ Source <b>{esc(r.source)}</b> did not respond: {esc(r.error)}")
-    return _pack(["\n".join(lines)])
+            parts.append((f"⚠️ Source <b>{esc(r.source)}</b> did not respond: {esc(r.error)}", None))
+    return _pack(parts)

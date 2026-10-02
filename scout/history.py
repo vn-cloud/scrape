@@ -46,8 +46,18 @@ class History:
 
     # --- items ---------------------------------------------------------------
 
-    def is_seen(self, item: Item) -> bool:
-        return item.key() in self.data["seen"][item.block.value]
+    def entry(self, item: Item) -> dict | None:
+        """The stored record for this item, or None if it was never seen.
+
+        If the stored record belongs to a *different* project with the same name key
+        (the sources' own IDs differ), the item is switched to a disambiguated key first.
+        """
+        bucket = self.data["seen"][item.block.value]
+        entry = bucket.get(item.key())
+        if entry is not None and not item.disambiguator and item.conflicts_with(entry.get("ids", {})):
+            item.disambiguate()
+            entry = bucket.get(item.key())
+        return entry
 
     def mark_seen(self, item: Item, reported: bool) -> None:
         bucket = self.data["seen"][item.block.value]
@@ -57,10 +67,13 @@ class History:
                 "project": item.project,
                 "first_seen": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
                 "sources": sorted(item.sources),
+                "ids": dict(sorted(item.ids.items())),
                 "reported": reported,
             }
         else:
             entry["sources"] = sorted(set(entry["sources"]) | set(item.sources))
+            entry["ids"] = dict(sorted({**item.ids, **entry.get("ids", {})}.items()))
+            entry["reported"] = entry.get("reported", False) or reported
 
     def count(self, block: Block | None = None) -> int:
         if block:

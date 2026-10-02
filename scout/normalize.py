@@ -39,7 +39,7 @@ def stage_key(stage: str) -> str:
     return s
 
 
-_AMOUNT_RE = re.compile(r"([\d.,]+)\s*([kmb]|thousand|million|billion)?", re.I)
+_AMOUNT_RE = re.compile(r"(\d[\d.,]*)\s*([kmb]|thousand|million|billion)?", re.I)
 _MULTIPLIERS = {"k": 1e3, "thousand": 1e3, "m": 1e6, "million": 1e6, "b": 1e9, "billion": 1e9}
 
 
@@ -81,6 +81,11 @@ def parse_date(value) -> date | None:
         return value.date()
     if isinstance(value, date):
         return value
+    if isinstance(value, str) and len(value) == 8 and value.isdigit() and value.startswith(("19", "20")):
+        try:  # compact "20261001"
+            return datetime.strptime(value, "%Y%m%d").date()
+        except ValueError:
+            pass
     if isinstance(value, (int, float)) or (isinstance(value, str) and value.isdigit()):
         ts = float(value)
         if ts > 1e11:  # milliseconds

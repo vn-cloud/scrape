@@ -142,3 +142,80 @@ def test_api_error_is_reported(tmp_path):
 
 def test_project_url():
     assert project_url("Ethena Labs", 10026) == "https://www.rootdata.com/Projects/detail/Ethena%20Labs?k=MTAwMjY%3D"
+
+
+def test_401_without_json_body_refreshes_the_key(tmp_path):
+    r = routes(key="fresh")
+    orig = r["get_fac"]
+
+    def get_fac(body, headers):
+        if headers["Authorization"] == "Bearer stale":
+            return FakeResp("<html>401</html>", status=401)
+        return orig(body, headers)
+
+    r["get_fac"] = get_fac
+    session = FakeSession(r)
+    assert RootDataSource().fetch(Context(settings=settings(tmp_path, key="stale"), session=session))
+    assert "init" in [c[0] for c in session.calls]
+
+
+@pytest.mark.parametrize("card_answer", [
+    {"result": 200, "data": None}, {"result": 200, "data": {}}, {"result": 200},
+])
+def test_empty_project_card_is_not_treated_as_verified(tmp_path, card_answer):
+    r = routes(rounds=[ROUNDS[0]])
+    r["get_item"] = lambda body, headers: FakeResp(card_answer)
+    items = RootDataSource().fetch(Context(settings=settings(tmp_path), session=FakeSession(r)))
+    assert len(items) == 1 and items[0].flags and "not verified" in items[0].flags[0]
+
+
+def test_paginates_without_total(tmp_path):
+    many = [dict(ROUNDS[0], name=f"P{i}", project_id=1) for i in range(120)]
+    r = routes(rounds=many)
+    orig = r["get_fac"]
+
+    def get_fac(body, headers):
+        resp = orig(body, headers)
+        resp._payload["data"].pop("total")
+        return resp
+
+    r["get_fac"] = get_fac
+    items = RootDataSource().fetch(Context(settings=settings(tmp_path), session=FakeSession(r)))
+    assert len(items) == 120
+
+
+def test_round_without_project_id_is_flagged(tmp_path):
+    raw = dict(ROUNDS[0])
+    raw.pop("project_id")
+    items = RootDataSource().fetch(Context(settings=settings(tmp_path), session=FakeSession(routes(rounds=[raw]))))
+    assert items[0].flags and "not verified" in items[0].flags[0]
+    assert "RootData" not in items[0].links
+
+
+def test_quiet_day_is_not_an_error_but_no_rounds_at_all_is(tmp_path):
+    only_series_a = [ROUNDS[2]]
+    items = RootDataSource().fetch(Context(settings=settings(tmp_path), session=FakeSession(routes(rounds=only_series_a))))
+    assert items == []
+    with pytest.raises(SourceError, match="no funding rounds"):
+        RootDataSource().fetch(Context(settings=settings(tmp_path), session=FakeSession(routes(rounds=[]))))
+
+
+def test_lookups_stop_after_repeated_failures(tmp_path):
+    many = [dict(ROUNDS[0], name=f"P{i}", project_id=100 + i) for i in range(10)]
+    r = routes(rounds=many)
+    calls = {"n": 0}
+
+    def get_item(body, headers):
+        calls["n"] += 1
+        return FakeResp({"result": 500, "message": "boom"})
+
+    r["get_item"] = get_item
+    items = RootDataSource().fetch(Context(settings=settings(tmp_path), session=FakeSession(r)))
+    assert len(items) == 10 and all(i.flags for i in items)
+    assert calls["n"] == 3
+
+
+def test_shape_hides_keys():
+    from scout.sources.rootdata import _shape
+    shown = str(_shape({"api_key": "short", "data": {"token_symbol": "", "apikey": "x"}}))
+    assert "short" not in shown and "<hidden>" in shown and "token_symbol" in shown
