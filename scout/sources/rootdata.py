@@ -57,11 +57,11 @@ class RootDataSource(Source):
                 payload = resp.json()
             except ValueError:
                 raise SourceError(f"{endpoint}: HTTP {resp.status_code}, not JSON (blocked or captcha?)") from None
-            code = payload.get("result")
-            if auth and attempt == 1 and (resp.status_code == 401 or code == 401):
+            code = str(payload.get("result", payload.get("code", "")))  # sometimes a string: "200"
+            if auth and attempt == 1 and (resp.status_code == 401 or code == "401"):
                 self._key = self._new_key()
                 continue
-            if resp.status_code >= 400 or code != 200:
+            if resp.status_code >= 400 or code != "200":
                 raise SourceError(f"{endpoint}: API error {code or resp.status_code} {payload.get('message', '')}".strip())
             return payload.get("data")
         raise SourceError(f"{endpoint}: API key rejected")

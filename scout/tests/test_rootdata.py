@@ -62,7 +62,7 @@ PROJECTS = {
 
 def routes(rounds=ROUNDS, key="k1"):
     def init(body, headers):
-        return FakeResp({"result": 200, "data": {"api_key": key}})
+        return FakeResp({"result": "200", "message": "Store this key", "data": {"api_key": key}})
 
     def get_fac(body, headers):
         page = body["page"]
