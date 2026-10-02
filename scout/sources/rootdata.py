@@ -57,18 +57,21 @@ class RootDataSource(Source):
                 payload = resp.json()
             except ValueError:
                 raise SourceError(f"{endpoint}: HTTP {resp.status_code}, not JSON (blocked or captcha?)") from None
-            code = str(payload.get("result", payload.get("code", "")))  # sometimes a string: "200"
+            log.debug("RootData %s -> HTTP %s %s", endpoint, resp.status_code, _shape(payload))
+            if not isinstance(payload, dict):
+                raise SourceError(f"{endpoint}: unexpected answer format")
+            code = str(payload.get("result", payload.get("code", "")))  # may be a string: "200"
             if auth and attempt == 1 and (resp.status_code == 401 or code == "401"):
                 self._key = self._new_key()
                 continue
-            if resp.status_code >= 400 or code != "200":
+            if resp.status_code >= 400 or code not in ("200", "0", ""):
                 raise SourceError(f"{endpoint}: API error {code or resp.status_code} {payload.get('message', '')}".strip())
-            return payload.get("data")
+            return payload.get("data", payload)
         raise SourceError(f"{endpoint}: API key rejected")
 
     def _new_key(self) -> str:
         data = self._post("init", {}, auth=False)
-        key = (data or {}).get("api_key")
+        key = _find(data, "api_key")
         if not key:
             raise SourceError("could not obtain an API key from /skill/init")
         return key
@@ -160,3 +163,33 @@ def _website(project: dict | None) -> str | None:
         if isinstance(site, str) and site.startswith("http"):
             return site
     return None
+
+
+def _find(obj, field: str):
+    """Depth-first search for a key anywhere in a JSON answer."""
+    if isinstance(obj, dict):
+        if obj.get(field):
+            return obj[field]
+        children = obj.values()
+    elif isinstance(obj, list):
+        children = obj
+    else:
+        return None
+    for child in children:
+        found = _find(child, field)
+        if found:
+            return found
+    return None
+
+
+def _shape(obj, depth: int = 0):
+    """Structure of a JSON answer with values hidden, for debugging without leaking keys."""
+    if depth > 3:
+        return "..."
+    if isinstance(obj, dict):
+        return {k: _shape(v, depth + 1) for k, v in list(obj.items())[:25]}
+    if isinstance(obj, list):
+        return [_shape(obj[0], depth + 1), f"x{len(obj)}"] if obj else []
+    if isinstance(obj, str):
+        return f"str({len(obj)})" if len(obj) > 24 else repr(obj)
+    return obj
