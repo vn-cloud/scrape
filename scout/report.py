@@ -42,7 +42,8 @@ def render_funding(n: int, item: Item) -> str:
     assert isinstance(item, FundingRound)
     stage = _STAGE_LABELS.get(stage_key(item.stage), item.stage or "Round n/a")
     lines = [f"{n}. <b>{esc(item.project)}</b> — {esc(stage)} · {format_amount(item.amount_usd)} · {fmt_date(item.announced)}"]
-    about = " · ".join(x for x in (item.summary, ", ".join(item.tags[:MAX_TAGS_SHOWN])) if x)
+    tags = [t for t in item.tags if t.casefold() != (item.summary or "").casefold()][:MAX_TAGS_SHOWN]
+    about = " · ".join(x for x in (item.summary, ", ".join(tags)) if x)
     if about:
         lines.append(f"   <i>{esc(about)}</i>")
     if item.investors:
