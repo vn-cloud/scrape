@@ -15,9 +15,10 @@ _NAME_SUFFIXES = {
 
 def project_key(name: str) -> str:
     """Canonical form of a project name used to match it across sources."""
-    text = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
-    text = re.sub(r"\(.*?\)", " ", text.lower())  # "Foo (prev. Bar)" -> "foo"
-    words = re.findall(r"[a-z0-9]+", text)
+    # Drop accents ("Café" -> "cafe") but keep non-Latin letters ("火币 Labs" -> "火币").
+    text = "".join(c for c in unicodedata.normalize("NFKD", name) if not unicodedata.combining(c))
+    text = re.sub(r"\(.*?\)", " ", text.casefold())  # "Foo (prev. Bar)" -> "foo"
+    words = re.findall(r"[^\W_]+", text)
     while len(words) > 1 and words[-1] in _NAME_SUFFIXES:
         words.pop()
     return "".join(words) or name.strip().lower()

@@ -107,6 +107,12 @@ def test_project_key_keeps_single_suffix_word():
     assert project_key("Network") == "network"
 
 
+def test_project_key_keeps_non_latin_names_apart():
+    assert project_key("火币 Labs") == "火币"
+    assert project_key("Ω Protocol") != project_key("Δ Protocol")
+    assert project_key("Café Labs") == "cafe"
+
+
 @pytest.mark.parametrize("raw,expected", [
     ("Pre-Seed", "pre-seed"), ("pre seed", "pre-seed"), ("Seed Round", "seed"), ("Seed+", "seed"),
     ("Series A", "series-a"), ("Pre-Series A", "pre-series-a"), ("", "unknown"), ("Strategic", "strategic"),
