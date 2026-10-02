@@ -104,9 +104,11 @@ class RootDataSource(Source):
 
         rounds: list[FundingRound] = []
         token_cache: dict = {}
-        logged_project = False
+        seen = wrong_stage = has_token = 0
         for raw in self._funding_pages(start):
+            seen += 1
             if stage_key(raw.get("rounds", "")) not in ctx.settings.funding_stages:
+                wrong_stage += 1
                 continue
             project_id = raw.get("project_id")
             name = (raw.get("name") or "").strip()
@@ -114,6 +116,7 @@ class RootDataSource(Source):
                 continue
 
             website = None
+            project = None
             if project_id is not None:
                 if project_id not in token_cache:
                     try:
@@ -121,12 +124,11 @@ class RootDataSource(Source):
                     except SourceError as exc:
                         log.warning("RootData get_item %s (%s) failed: %s", project_id, name, exc)
                         token_cache[project_id] = None
-                    if not logged_project and token_cache[project_id]:
-                        log.debug("RootData sample project: %s", token_cache[project_id])
-                        logged_project = True
                 project = token_cache[project_id]
                 if project and (project.get("token_symbol") or "").strip():
-                    continue  # the project already has a token
+                    has_token += 1
+                    log.info("RootData: skip %s (%s) - has token %s", name, raw.get("rounds"), project["token_symbol"])
+                    continue
                 website = _website(project)
 
             item = FundingRound(
@@ -136,8 +138,11 @@ class RootDataSource(Source):
                 investors=[i.get("name", "").strip() for i in raw.get("invests") or [] if i.get("name")],
                 announced=parse_date(raw.get("published_time")),
                 website=website,
-                links={"RootData": project_url(name, project_id)} if project_id is not None else {},
+                summary=(raw.get("one_liner") or "").strip() or None,
+                tags=[t for t in (project or {}).get("tags") or [] if isinstance(t, str)],
             )
+            if project_id is not None:
+                item.links["RootData"] = (project or {}).get("rootdataurl") or project_url(name, project_id)
             if project_id is not None and token_cache.get(project_id) is None:
                 item.flags.append("token status not verified (RootData project card unavailable)")
             if raw.get("source_url"):
@@ -145,6 +150,10 @@ class RootDataSource(Source):
             if raw.get("X"):
                 item.links["X"] = raw["X"]
             rounds.append(item)
+        log.info(
+            "RootData: %d rounds since %s; %d other stages, %d with a token, %d kept",
+            seen, start, wrong_stage, has_token, len(rounds),
+        )
         return rounds
 
 

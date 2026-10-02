@@ -57,6 +57,8 @@ class FundingRound(Item):
     investors: list[str] = field(default_factory=list)
     announced: date | None = None
     website: str | None = None
+    summary: str | None = None  # one-line description of the project
+    tags: list[str] = field(default_factory=list)
 
     block: ClassVar[Block] = Block.FUNDING
 
@@ -79,6 +81,10 @@ class FundingRound(Item):
         if other.announced and (not self.announced or other.announced < self.announced):
             self.announced = other.announced
         self.website = self.website or other.website
+        self.summary = self.summary or other.summary
+        for tag in other.tags:
+            if tag not in self.tags:
+                self.tags.append(tag)
 
 
 @dataclass

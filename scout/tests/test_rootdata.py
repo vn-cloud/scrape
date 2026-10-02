@@ -44,7 +44,7 @@ def settings(tmp_path: Path, key=None) -> Settings:
 
 ROUNDS = [
     {"name": "NoTokenSeed", "rounds": "Seed", "amount": 3000000, "published_time": "2026-09-30",
-     "project_id": 1, "source_url": "https://news/1", "X": "https://x.com/notoken",
+     "project_id": 1, "source_url": "https://news/1", "X": "https://x.com/notoken", "one_liner": "Payments rails",
      "invests": [{"name": "Hashed"}, {"name": "Polychain"}]},
     {"name": "HasToken", "rounds": "Pre-Seed", "amount": None, "published_time": "2026-09-29",
      "project_id": 2, "invests": []},
@@ -54,9 +54,10 @@ ROUNDS = [
      "project_id": 4, "invests": []},
 ]
 PROJECTS = {
-    1: {"project_id": 1, "token_symbol": "", "social_media": {"website": "https://notoken.xyz"}},
+    1: {"project_id": 1, "token_symbol": "", "social_media": {"website": "https://notoken.xyz"},
+        "tags": ["Infra", "Payment"], "rootdataurl": "https://www.rootdata.com/Projects/detail/NoTokenSeed?k=MQ=="},
     2: {"project_id": 2, "token_symbol": "HTK"},
-    3: {"project_id": 3, "token_symbol": ""},
+    3: {"project_id": 3},  # token_symbol is sometimes missing entirely
 }
 
 
@@ -90,6 +91,8 @@ def test_fetch_keeps_seed_rounds_without_token(tmp_path):
     assert first.announced == date(2026, 9, 30)
     assert first.website == "https://notoken.xyz"
     assert set(first.links) == {"RootData", "News", "X"}
+    assert first.links["RootData"].endswith("k=MQ==")
+    assert first.summary == "Payments rails" and first.tags == ["Infra", "Payment"]
     assert not first.flags
     assert items[1].amount_usd is None
     assert items[1].flags and "not verified" in items[1].flags[0]

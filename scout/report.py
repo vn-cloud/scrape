@@ -13,6 +13,7 @@ from .normalize import format_amount, stage_key
 # the limit is counted after HTML parsing and emoji count double.
 MAX_MESSAGE_LEN = 3800
 MAX_INVESTORS_SHOWN = 6
+MAX_TAGS_SHOWN = 3
 
 
 def esc(text: str) -> str:
@@ -41,6 +42,9 @@ def render_funding(n: int, item: Item) -> str:
     assert isinstance(item, FundingRound)
     stage = _STAGE_LABELS.get(stage_key(item.stage), item.stage or "Round n/a")
     lines = [f"{n}. <b>{esc(item.project)}</b> — {esc(stage)} · {format_amount(item.amount_usd)} · {fmt_date(item.announced)}"]
+    about = " · ".join(x for x in (item.summary, ", ".join(item.tags[:MAX_TAGS_SHOWN])) if x)
+    if about:
+        lines.append(f"   <i>{esc(about)}</i>")
     if item.investors:
         shown = ", ".join(esc(i) for i in item.investors[:MAX_INVESTORS_SHOWN])
         extra = len(item.investors) - MAX_INVESTORS_SHOWN
