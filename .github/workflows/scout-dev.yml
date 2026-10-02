@@ -30,9 +30,9 @@ jobs:
       - run: pip install -r scout/requirements.txt
       - run: python -m playwright install --with-deps chromium
       - name: Probe pages
-        run: |
-          targets=$(grep -v '^\s*#' scout/tools/probe_targets.txt | grep -v '^\s*$' || true)
-          if [ -n "$targets" ]; then python -m scout.tools.probe $targets; fi
+        env:
+          ROOTDATA_API_KEY: ${{ secrets.ROOTDATA_API_KEY }}
+        run: python -m scout.tools.probe --targets scout/tools/probe_targets.txt
       - name: Preview report (printed, not sent)
         continue-on-error: true
         run: python -m scout --preview --dry-run -v
@@ -42,10 +42,3 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python -m scout --preview
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: probe-output
-          path: probe_output/
-          if-no-files-found: ignore
-          retention-days: 7

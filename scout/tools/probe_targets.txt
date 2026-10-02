@@ -1,2 +1,8 @@
-# URLs probed by the scout-dev GitHub workflow (one per line, '#' = comment).
+# Targets probed by the scout-dev GitHub workflow, one per line ('#' = comment).
+#   URL                  -> load the page (plain request + headless browser)
+#   GET URL              -> plain API call
+#   POST URL {json}      -> plain API call with a JSON body
 https://www.rootdata.com/Fundraising
+POST https://api.rootdata.com/open/quotacredits {}
+POST https://api.rootdata.com/open/ser_inv {"query": "ChainGPT"}
+POST https://api.rootdata.com/open/get_fac {"page": 1, "page_size": 5}

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -49,6 +50,10 @@ def plain_request(url: str) -> None:
     print(f"  title: {title.group(1).strip()[:120] if title else '-'}")
     found = [desc for m, desc in MARKERS.items() if m in r.text]
     print(f"  markers: {', '.join(found) or 'none'}")
+    print(f"  cookies: {', '.join(r.cookies.keys()) or '-'}")
+    if len(r.text) < 6000 or found:
+        print("  body (first 3000 chars):")
+        print("  | " + r.text[:3000].replace("\n", "\n  | "))
     OUT_DIR.mkdir(exist_ok=True)
     (OUT_DIR / f"{_slug(url)}.plain.html").write_text(r.text, encoding="utf-8")
 
@@ -101,6 +106,9 @@ def browser_probe(url: str, wait: float, max_body: int) -> None:
 
     found = [desc for m, desc in MARKERS.items() if m in html_text]
     print(f"  markers: {', '.join(found) or 'none'}")
+    if len(html_text) < 6000:
+        print("  rendered html (first 3000 chars):")
+        print("  | " + html_text[:3000].replace("\n", "\n  | "))
     print(f"  visible text ({len(visible)} chars), first 2500:")
     print("  | " + visible[:2500].replace("\n", "\n  | "))
     print(f"  XHR/fetch calls: {len(calls)}")
@@ -113,17 +121,55 @@ def browser_probe(url: str, wait: float, max_body: int) -> None:
             print(f"      json[{len(body)}]: {body[:max_body]}")
 
 
+def api_request(method: str, url: str, body: str | None) -> None:
+    """Plain API call; ROOTDATA_API_KEY (if set) is sent as the 'apikey' header for rootdata hosts."""
+    print(f"\n=== API {method} {url} {body or ''}")
+    headers = {"User-Agent": USER_AGENT, "Content-Type": "application/json", "language": "en"}
+    key = os.environ.get("ROOTDATA_API_KEY")
+    if key and "rootdata" in url:
+        headers["apikey"] = key
+    try:
+        r = requests.request(method, url, headers=headers, data=body, timeout=30)
+    except requests.RequestException as exc:
+        print(f"  ERROR {type(exc).__name__}: {exc}")
+        return
+    print(f"  status={r.status_code} len={len(r.text)} ctype={r.headers.get('content-type', '')} server={r.headers.get('server', '')}")
+    print("  | " + r.text[:2500].replace("\n", "\n  | "))
+
+
+def read_targets(path: Path) -> list[tuple[str, str, str | None]]:
+    """Lines: 'URL' (page probe), 'GET URL' or 'POST URL {json}' (plain API call)."""
+    targets = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split(maxsplit=2)
+        if parts[0].upper() in ("GET", "POST"):
+            targets.append((parts[0].upper(), parts[1], parts[2] if len(parts) > 2 else None))
+        else:
+            targets.append(("PAGE", parts[0], None))
+    return targets
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("urls", nargs="+")
-    parser.add_argument("--wait", type=float, default=8, help="seconds to wait after page load")
+    parser.add_argument("urls", nargs="*")
+    parser.add_argument("--targets", type=Path, help="file with one target per line (see read_targets)")
+    parser.add_argument("--wait", type=float, default=12, help="seconds to wait after page load")
     parser.add_argument("--max-body", type=int, default=1200, help="characters of each JSON response to print")
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args(argv)
-    for url in args.urls:
-        plain_request(url)
-        if not args.no_browser:
-            browser_probe(url, args.wait, args.max_body)
+    targets = [("PAGE", u, None) for u in args.urls]
+    if args.targets:
+        targets += read_targets(args.targets)
+    for kind, url, body in targets:
+        if kind == "PAGE":
+            plain_request(url)
+            if not args.no_browser:
+                browser_probe(url, args.wait, args.max_body)
+        else:
+            api_request(kind, url, body)
     return 0
 
 
