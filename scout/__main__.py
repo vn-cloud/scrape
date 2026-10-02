@@ -23,6 +23,8 @@ def main(argv: list[str] | None = None) -> int:
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+    # urllib3 debug lines include request URLs, and Telegram URLs contain the bot token.
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
     settings = load_settings()
     try:
         run(settings, only=args.only, dry_run=args.dry_run, preview=args.preview)

@@ -26,7 +26,7 @@ class Settings:
     funding_max_age_days: int
     enabled_sources: dict[str, bool] = field(default_factory=dict)
     history_path: Path = DEFAULT_HISTORY_PATH
-    rootdata_api_key: str | None = None
+    rootdata_skill_key: str | None = None
 
     def source_enabled(self, name: str) -> bool:
         return self.enabled_sources.get(name.lower(), True)
@@ -55,5 +55,5 @@ def load_settings(config_path: Path | None = None) -> Settings:
         funding_max_age_days=int(funding.get("max_age_days", 14)),
         enabled_sources={k.lower(): bool(v) for k, v in cfg.get("sources", {}).items()},
         history_path=Path(history_override) if history_override else DEFAULT_HISTORY_PATH,
-        rootdata_api_key=_env("ROOTDATA_API_KEY"),
+        rootdata_skill_key=_env("ROOTDATA_SKILL_KEY"),
     )

@@ -30,11 +30,8 @@ jobs:
       - run: pip install -r scout/requirements.txt
       - run: python -m playwright install --with-deps chromium
       - name: Probe pages
-        env:
-          ROOTDATA_API_KEY: ${{ secrets.ROOTDATA_API_KEY }}
         run: python -m scout.tools.probe --targets scout/tools/probe_targets.txt
       - name: Preview report (printed, not sent)
-        continue-on-error: true
         run: python -m scout --preview --dry-run -v
       - name: Send preview to Telegram
         if: contains(github.event.head_commit.message, '[tg]')

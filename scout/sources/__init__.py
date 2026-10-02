@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from .base import Source
+from .rootdata import RootDataSource
 
 
 def all_sources() -> list[Source]:
-    return []
+    return [
+        RootDataSource(),
+    ]
