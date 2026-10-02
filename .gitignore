@@ -2,3 +2,8 @@ __pycache__/
 *.pyc
 *.pyo
 *.xlsx
+
+# Secrets and local state - never commit
+.env
+*.session
+probe_output/

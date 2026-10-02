@@ -1,0 +1,51 @@
+# Development runs: triggered by pushes to the development branch.
+# Probes the pages listed in scout/tools/probe_targets.txt and prints a preview report.
+# Add "[tg]" to a commit message to also send the preview to Telegram.
+name: scout-dev
+
+on:
+  push:
+    branches: [claude/brave-archimedes-4yyash]
+    paths: ["scout/**", ".github/workflows/scout-dev.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scout-dev
+  cancel-in-progress: true
+
+jobs:
+  dev:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scout/requirements.txt
+      - run: pip install -r scout/requirements.txt
+      - run: python -m playwright install --with-deps chromium
+      - name: Probe pages
+        run: |
+          targets=$(grep -v '^\s*#' scout/tools/probe_targets.txt | grep -v '^\s*$' || true)
+          if [ -n "$targets" ]; then python -m scout.tools.probe $targets; fi
+      - name: Preview report (printed, not sent)
+        continue-on-error: true
+        run: python -m scout --preview --dry-run -v
+      - name: Send preview to Telegram
+        if: contains(github.event.head_commit.message, '[tg]')
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m scout --preview
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-output
+          path: probe_output/
+          if-no-files-found: ignore
+          retention-days: 7

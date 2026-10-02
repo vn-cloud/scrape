@@ -1,0 +1,2 @@
+# URLs probed by the scout-dev GitHub workflow (one per line, '#' = comment).
+https://www.rootdata.com/Fundraising

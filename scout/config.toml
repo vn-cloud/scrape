@@ -1,0 +1,18 @@
+# Scout settings that are safe to commit (no secrets here).
+# Secrets (tokens, API keys) go into the .env file locally, or GitHub Secrets for the daily run.
+
+[report]
+# Dates in the report are shown in this time zone.
+timezone = "Europe/Kyiv"
+title = "ChainGPT Pad Scouting"
+
+[funding]
+# Only these round types are reported. Possible extra values: "angel", "strategic", "private", "series-a".
+stages = ["pre-seed", "seed"]
+# Ignore rounds whose announcement date is older than this many days,
+# even if a source lists them for the first time (sites sometimes back-fill old rounds).
+max_age_days = 14
+
+[sources]
+# Set a source to false to switch it off without touching the code.
+rootdata = true
